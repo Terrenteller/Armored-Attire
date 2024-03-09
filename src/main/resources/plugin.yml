@@ -1,0 +1,31 @@
+name: ArmoredAttire
+version: '${version}'
+main: com.riintouge.armoredattire.ArmoredAttire
+api-version: '1.20'
+authors: [ Terrenteller ]
+depend: [ NBTAPI , ProtocolLib ]
+
+commands:
+  attire:
+    description: "Alter the cosmetic appearance of an item"
+    usage: "/attire (clear|hide|preview|set)"
+    clear:
+      description: "Remove the cosmetic from the held item"
+      usage: "/attire clear"
+      permission: permission.node
+      permission-message: "You do not have permission to use this command"
+    hide:
+      description: "Hide the equipment in the given slot"
+      usage: "/attire hide <slot>"
+      permission: permission.node
+      permission-message: "You do not have permission to use this command"
+    preview:
+      description: "Temporarily show the player their cosmetics"
+      usage: "/attire preview"
+      permission: permission.node
+      permission-message: "You do not have permission to use this command"
+    set:
+      description: "Apply a cosmetic to a worn or off hand item"
+      usage: "/attire set"
+      permission: permission.node
+      permission-message: "You do not have permission to use this command"
