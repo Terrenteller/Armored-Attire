@@ -1,8 +1,7 @@
 package com.riintouge.armoredattire;
 
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.GameMode;
+import org.bukkit.Material;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -27,18 +26,22 @@ public class AttireCommand implements CommandExecutor , TabCompleter
 		this.logger = logger;
 	}
 
+	protected boolean isHeadLikeItem( Material material )
+	{
+		// Taken from EnchantmentTarget.WEARABLE
+		return material.equals( Material.CARVED_PUMPKIN )
+			|| material.equals( Material.SKELETON_SKULL )
+			|| material.equals( Material.WITHER_SKELETON_SKULL )
+			|| material.equals( Material.ZOMBIE_HEAD )
+			|| material.equals( Material.PIGLIN_HEAD )
+			|| material.equals( Material.PLAYER_HEAD )
+			|| material.equals( Material.CREEPER_HEAD )
+			|| material.equals( Material.DRAGON_HEAD );
+	}
+
 	protected void sendCommandResponse( @NotNull CommandSender commandSender , @NotNull String message )
 	{
-		Component component = Component.text()
-			.content( "[" )
-			.append( Component.text( "Armored" , NamedTextColor.GRAY ) )
-			.append( Component.text( "Attire" , NamedTextColor.RED ) )
-			.resetStyle()
-			.append( Component.text( "] " ) )
-			.append( Component.text( message ) )
-			.build();
-
-		commandSender.sendMessage( component );
+		commandSender.sendMessage( "[§7Armored§cAttire§r] " + message );
 	}
 
 	// CommandExecutor overrides
@@ -108,7 +111,7 @@ public class AttireCommand implements CommandExecutor , TabCompleter
 
 		EntityEquipment playerEquipment = player.getEquipment();
 		ItemStack sourceItemStack = playerEquipment.getItemInMainHand();
-		if( sourceItemStack.isEmpty() )
+		if( ItemStackUtil.isNullOrEmpty( sourceItemStack ) )
 		{
 			sendCommandResponse( commandSender , "No item in main hand!" );
 			return true;
@@ -123,14 +126,22 @@ public class AttireCommand implements CommandExecutor , TabCompleter
 
 		// TODO: Allow weapons and tools to be overridden by anything?
 		ItemStack targetItemStack = null;
-		if( EnchantmentTarget.ARMOR_HEAD.includes( sourceItemStack ) )
+		if( EnchantmentTarget.ARMOR_HEAD.includes( sourceItemStack ) || isHeadLikeItem( sourceItemStack.getType() ) )
+		{
 			targetItemStack = playerEquipment.getHelmet();
+		}
 		else if( EnchantmentTarget.ARMOR_TORSO.includes( sourceItemStack ) )
+		{
 			targetItemStack = playerEquipment.getChestplate();
+		}
 		else if( EnchantmentTarget.ARMOR_LEGS.includes( sourceItemStack ) )
+		{
 			targetItemStack = playerEquipment.getLeggings();
+		}
 		else if( EnchantmentTarget.ARMOR_FEET.includes( sourceItemStack ) )
+		{
 			targetItemStack = playerEquipment.getBoots();
+		}
 		else if( EnchantmentTarget.WEAPON.includes( sourceItemStack ) )
 		{
 			targetItemStack = playerEquipment.getItemInOffHand();
@@ -155,7 +166,7 @@ public class AttireCommand implements CommandExecutor , TabCompleter
 			return true;
 		}
 
-		if( targetItemStack == null || targetItemStack.isEmpty() )
+		if( ItemStackUtil.isNullOrEmpty( targetItemStack ) )
 		{
 			sendCommandResponse( commandSender , "No corresponding worn item!" );
 			return true;
@@ -166,6 +177,7 @@ public class AttireCommand implements CommandExecutor , TabCompleter
 			player,
 			EntityEquipmentPacketAdapter.UpdateReason.OVERRIDE_UPDATED );
 
+		sendCommandResponse( commandSender , "Override applied successfully" );
 		return true;
 	}
 

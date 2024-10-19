@@ -1,19 +1,19 @@
 
 ## What is Armored Attire?
 
-_Armored Attire_ is a simple, server-side solution to cosmetic overrides for PaperMC.
+_Armored Attire_ is a simple, server-side solution to cosmetic overrides for Spigot.
 
 ## How does Armored Attire work?
 
 **High-level**
 
-_Armored Attire_ applies an armor, tool, or weapon as the cosmetic override of another by encoding the source item as NBT data on the target item. When present, the cosmetic item is shown to other players instead of the original (target) item. The display of cosmetic overrides is restricted to players and armor stands.
+_Armored Attire_ applies an armor, tool, or weapon as the cosmetic override of another by encoding the source item as NBT data on the target item. When present, the cosmetic (source) item is shown to other players instead of the original (target) item. The display of cosmetic overrides is restricted to players and armor stands.
 
-Additionally, Vanilla Tweaks' _Armored Elytra_ has first-class support. The elytra's chestplate functions as a cosmetic override and will be shown whenever the player is not flying. A cosmetic chestplate added by _Armored Attire_ will override the elytra's chestplate as expected, but it must be applied to the elytra, not the elytra's chestplate. Cosmetic overrides cannot be nested.
+Additionally, _Vanilla Tweaks_' _Armored Elytra_ has first-class support. The elytra's chestplate functions as a cosmetic override and will be shown whenever the player is not flying. A cosmetic chestplate added by _Armored Attire_ will override the elytra's chestplate as expected, but it must be applied to the elytra, not the elytra's chestplate. Cosmetic overrides cannot be nested.
 
 **Low-level**
 
-When the server sends an entity equipment packet about a player to any other player, _Armored Attire_ intercepts the packet, reconstitutes cosmetic items from `cosmeticOverride` NBT data, and re-writes the packet with those instead, if any. Movement is also tracked to update the appearance of _Armored Elytra_.
+_Armored Attire_ intercepts and re-writes entity equipment packets broadcast by the server with items reconstituted from `cosmetic_override` NBT data when appropriate criteria is met. In the case of _Armored Elytra_, movement is tracked to trigger updates in the first place.
 
 ## How do I use Armored Attire?
 
@@ -28,7 +28,7 @@ Drop the JAR and its dependencies, NBTAPI and ProtocolLib, in the `plugins` dire
 - `/attire hide <head|body|legs|feet>`
   - Add a dummy "none" cosmetic override to the item in the slot to prevent it from showing at all.
 - `/attire preview`
-  - Temporarily show the player their cosmetic overrides. This will last until the player receives another equipment update from the server. The player is not normally shown their overrides because it causes _a lot_ of problems. **WARNING: Entering creative mode while a preview is shown may cause the overrides to replace the original items!**
+  - Temporarily show the player their cosmetic overrides. This will last until the player receives another equipment update from the server. The player is not normally shown their overrides because it causes _a lot_ of problems. **WARNING: Entering creative mode while a preview is shown will likely cause the overrides to replace the original items!**
 - `/attire set`
   - Set the item in the main hand to be the cosmetic override of the corresponding armor slot, or tool or weapon in the off hand.
 
@@ -36,7 +36,7 @@ Drop the JAR and its dependencies, NBTAPI and ProtocolLib, in the `plugins` dire
 
 **Windows**
 
-With Java 17, run `gradlew.bat build` and check `build/libs` for the JAR. A build environment may need to be prepared first with other Gradle tasks. Refer to PaperMC development documentation if problems arise.
+With Java 21, run `gradlew.bat build` and check `build/libs` for the JAR. A build environment may need to be prepared first with other Gradle tasks. Refer to Spigot development documentation for further information.
 
 ## Legal stuff
 

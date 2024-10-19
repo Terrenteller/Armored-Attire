@@ -1,7 +1,7 @@
 name: ArmoredAttire
 version: '${version}'
 main: com.riintouge.armoredattire.ArmoredAttire
-api-version: '1.20'
+api-version: '1.21'
 authors: [ Terrenteller ]
 depend: [ NBTAPI , ProtocolLib ]
 

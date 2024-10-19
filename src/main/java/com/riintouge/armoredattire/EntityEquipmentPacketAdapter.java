@@ -10,13 +10,16 @@ import com.comphenix.protocol.events.PacketEvent;
 import com.comphenix.protocol.reflect.StructureModifier;
 import com.comphenix.protocol.wrappers.EnumWrappers;
 import com.comphenix.protocol.wrappers.Pair;
-import de.tr7zw.nbtapi.NBTCompound;
-import de.tr7zw.nbtapi.NBTItem;
+import de.tr7zw.nbtapi.NBT;
+import de.tr7zw.nbtapi.iface.ReadWriteNBT;
+import de.tr7zw.nbtapi.iface.ReadableNBT;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.*;
 import org.bukkit.inventory.EntityEquipment;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.Plugin;
 
 import javax.annotation.Nonnull;
@@ -25,10 +28,16 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class EntityEquipmentPacketAdapter extends PacketAdapter
 {
 	public static final Map< Integer , Boolean > PREVIEW_TOGGLE = new HashMap<>();
+
+	private static final Pattern VANILLA_TWEAKS_ARMORED_ELYTRA_CHESTPLATE_PATTERN
+		= Pattern.compile( "\"translate\":\"item\\.([^.]+)\\.([^\"]+)" );
 
 	public enum UpdateReason
 	{
@@ -165,95 +174,88 @@ public class EntityEquipmentPacketAdapter extends PacketAdapter
 		@Nonnull ItemStack target,
 		@Nullable OverrideCost cost )
 	{
-		boolean hide = false;
-		if( source == null )
+		// TODO: Default to a server config option
+		final OverrideCost finalCost = cost == null ? OverrideCost.NO_CONSUME_NO_RETURN : cost;
+
+		NBT.modify( target , targetNBT ->
 		{
-			source = new ItemStack( Material.AIR );
-			hide = true;
-		}
+			// TODO: Don't allow overwrites? Force the player to remove the old cosmetic first?
+			targetNBT.removeKey( "cosmetic_override" ); // Start fresh
+			ReadWriteNBT cosmeticOverrideCompound = targetNBT.getOrCreateCompound( "cosmetic_override" );
 
-		if( cost == null )
-			cost = OverrideCost.NO_CONSUME_NO_RETURN; // TODO: Default to a server config option
+			if( source != null )
+			{
+				ReadWriteNBT sourceNBT = NBT.itemStackToNBT( source );
+				sourceNBT.removeKey( "cosmetic_override" ); // Prevent infinite nesting
 
-		NBTItem targetNBTItem = new NBTItem( target );
-		// TODO: Don't allow overwrites? Force the player to remove the old cosmetic first?
-		targetNBTItem.removeKey( "cosmeticOverride" ); // Start fresh
-
-		NBTCompound cosmeticOverrideCompound = targetNBTItem.getOrCreateCompound( "cosmeticOverride" );
-		cosmeticOverrideCompound.setString( "id" , source.getType().getKey().toString() );
-		cosmeticOverrideCompound.setByte( "cost" , (byte)cost.ordinal() );
-		NBTCompound tag = cosmeticOverrideCompound.getOrCreateCompound( "tag" );
-
-		if( !hide )
-		{
-			NBTCompound sourceNBTItem = new NBTItem( source );
-			sourceNBTItem.removeKey( "cosmeticOverride" ); // Prevent infinite nesting
-			tag.mergeCompound( sourceNBTItem );
-		}
-
-		targetNBTItem.applyNBT( target );
+				cosmeticOverrideCompound.setByte( "cost" , (byte)finalCost.ordinal() );
+				cosmeticOverrideCompound.setItemStack( "item_stack" , NBT.itemStackFromNBT( sourceNBT ) );
+			}
+		} );
 	}
 
 	public static void removeCosmeticOverride( ItemStack itemStack )
 	{
-		NBTItem itemNBT = new NBTItem( itemStack );
-		itemNBT.removeKey( "cosmeticOverride" );
-		itemNBT.applyNBT( itemStack );
+		NBT.modify( itemStack , nbt ->
+		{
+			nbt.removeKey( "cosmetic_override" );
+		} );
 	}
 
 	public static @Nullable ItemStack extractCosmeticOverride( @Nullable ItemStack itemStack )
 	{
-		if( itemStack == null || itemStack.isEmpty() )
+		if( ItemStackUtil.isNullOrEmpty( itemStack ) )
 			return null;
 
-		NBTItem itemNBT = new NBTItem( itemStack );
-		ItemStack cosmeticOverride = extractCosmeticOverride( itemNBT , "cosmeticOverride" );
-		if( cosmeticOverride != null )
-			return cosmeticOverride;
-
-		if( itemStack.getType() == Material.ELYTRA )
+		AtomicReference< ItemStack > atomicResult = new AtomicReference<>();
+		NBT.get( itemStack , nbt ->
 		{
-			// Vanilla Tweaks's Armored Elytra
-			NBTCompound armoredElytraNBT = itemNBT.getCompound( "armElyData" );
-			if( armoredElytraNBT != null )
-				return extractCosmeticOverride( armoredElytraNBT , "chestplate" );
-		}
+			ReadableNBT cosmeticOverrideCompound = nbt.getCompound( "cosmetic_override" );
+			if( cosmeticOverrideCompound != null )
+			{
+				ReadableNBT cosmeticOverrideItemStackCompound = cosmeticOverrideCompound.getCompound( "item_stack" );
+				ItemStack cosmeticOverrideItemStack = cosmeticOverrideItemStackCompound != null
+					? NBT.itemStackFromNBT( cosmeticOverrideItemStackCompound )
+					: new ItemStack( Material.AIR , 0 );
+				atomicResult.set( cosmeticOverrideItemStack );
+			}
+			else if( itemStack.getType() == Material.ELYTRA )
+			{
+				// Check for Vanilla Tweaks...
+				ReadableNBT armoredElytraCompound = nbt.getCompound( "armored_elytra" );
+				if( armoredElytraCompound != null )
+				{
+					// ...which no longer stores the original item in a verbose, extendable manner
+					ItemMeta itemStackMeta = itemStack.getItemMeta();
+					Matcher matcher = VANILLA_TWEAKS_ARMORED_ELYTRA_CHESTPLATE_PATTERN.matcher( itemStackMeta.getAsString() );
+					if( matcher.find() )
+					{
+						// Try our best
+						String domainName = matcher.group( 1 );
+						String materialName = matcher.group( 2 );
+						Material material = Material.matchMaterial( String.format( "%s:%s" , domainName , materialName ) );
+						if( material != null && material != Material.AIR )
+						{
+							ItemStack cosmeticOverrideItemStack = new ItemStack( material );
+							ItemMeta cosmeticOverrideItemStackMeta = cosmeticOverrideItemStack.getItemMeta();
 
-		return null;
-	}
+							// TODO: How can we determine whether the chestplate actually has enchantments?
+							Map< Enchantment, Integer > enchantments = itemStackMeta.getEnchants();
+							for( Enchantment enchantment : enchantments.keySet() )
+								cosmeticOverrideItemStackMeta.addEnchant( enchantment , enchantments.get( enchantment ) , false );
 
-	public static @Nullable ItemStack extractCosmeticOverride( @Nullable NBTCompound compound , @Nullable String nestedItemKey )
-	{
-		if( compound == null )
-			return null;
+							if( itemStackMeta.hasEnchantmentGlintOverride() )
+								cosmeticOverrideItemStackMeta.setEnchantmentGlintOverride( true );
 
-		NBTCompound cosmeticOverrideNBT = nestedItemKey != null && !nestedItemKey.isEmpty()
-			? compound.getCompound( nestedItemKey )
-			: compound;
-		if( cosmeticOverrideNBT == null )
-			return null;
+							cosmeticOverrideItemStack.setItemMeta( cosmeticOverrideItemStackMeta );
+							atomicResult.set( cosmeticOverrideItemStack );
+						}
+					}
+				}
+			}
+		} );
 
-		String cosmeticOverrideMaterialName = cosmeticOverrideNBT.getString( "id" );
-		NBTCompound cosmeticOverrideData = cosmeticOverrideNBT.getCompound( "tag" );
-		if( cosmeticOverrideMaterialName == null || cosmeticOverrideMaterialName.isEmpty() || cosmeticOverrideData == null )
-			return null;
-
-		Material cosmeticOverrideMaterial = Material.matchMaterial( cosmeticOverrideMaterialName );
-		if( cosmeticOverrideMaterial == null )
-			return null;
-
-		ItemStack cosmeticOverrideItemStack = new ItemStack( cosmeticOverrideMaterial );
-		if( cosmeticOverrideItemStack.getType() == Material.AIR )
-		{
-			cosmeticOverrideItemStack.setAmount( 0 );
-			return cosmeticOverrideItemStack;
-		}
-
-		NBTItem cosmeticOverrideNBTItem = new NBTItem( cosmeticOverrideItemStack );
-		cosmeticOverrideNBTItem.mergeCompound( cosmeticOverrideData );
-		cosmeticOverrideNBTItem.applyNBT( cosmeticOverrideItemStack );
-
-		return cosmeticOverrideItemStack;
+		return atomicResult.get();
 	}
 
 	public static @Nonnull List< Pair< EnumWrappers.ItemSlot , ItemStack > > getEquipmentPairs( @Nullable LivingEntity entity )
@@ -263,28 +265,28 @@ public class EntityEquipmentPacketAdapter extends PacketAdapter
 		EntityEquipment entityEquipment = entity != null ? entity.getEquipment() : null;
 		if( entityEquipment != null )
 		{
-			ItemStack helmet = entityEquipment.getHelmet();
-			if( helmet != null && !helmet.isEmpty() )
-				equipmentPairs.add( new Pair<>( EnumWrappers.ItemSlot.HEAD , helmet ) );
+			ItemStack head = entityEquipment.getHelmet();
+			if( !ItemStackUtil.isNullOrEmpty( head ) )
+				equipmentPairs.add( new Pair<>( EnumWrappers.ItemSlot.HEAD , head ) );
 
-			ItemStack chestplate = entityEquipment.getChestplate();
-			if( chestplate != null && !chestplate.isEmpty() )
-				equipmentPairs.add( new Pair<>( EnumWrappers.ItemSlot.CHEST , chestplate ) );
+			ItemStack chest = entityEquipment.getChestplate();
+			if( !ItemStackUtil.isNullOrEmpty( chest ) )
+				equipmentPairs.add( new Pair<>( EnumWrappers.ItemSlot.CHEST , chest ) );
 
-			ItemStack leggings = entityEquipment.getLeggings();
-			if( leggings != null && !leggings.isEmpty() )
-				equipmentPairs.add( new Pair<>( EnumWrappers.ItemSlot.LEGS , leggings ) );
+			ItemStack legs = entityEquipment.getLeggings();
+			if( !ItemStackUtil.isNullOrEmpty( legs ) )
+				equipmentPairs.add( new Pair<>( EnumWrappers.ItemSlot.LEGS , legs ) );
 
-			ItemStack boots = entityEquipment.getBoots();
-			if( boots != null && !boots.isEmpty() )
-				equipmentPairs.add( new Pair<>( EnumWrappers.ItemSlot.FEET , boots ) );
+			ItemStack feet = entityEquipment.getBoots();
+			if( !ItemStackUtil.isNullOrEmpty( feet ) )
+				equipmentPairs.add( new Pair<>( EnumWrappers.ItemSlot.FEET , feet ) );
 
 			ItemStack mainHand = entityEquipment.getItemInMainHand();
-			if( !mainHand.isEmpty() )
+			if( !ItemStackUtil.isNullOrEmpty( mainHand ) )
 				equipmentPairs.add( new Pair<>( EnumWrappers.ItemSlot.MAINHAND , mainHand ) );
 
 			ItemStack offHand = entityEquipment.getItemInOffHand();
-			if( !offHand.isEmpty() )
+			if( !ItemStackUtil.isNullOrEmpty( offHand ) )
 				equipmentPairs.add( new Pair<>( EnumWrappers.ItemSlot.OFFHAND , offHand ) );
 		}
 
