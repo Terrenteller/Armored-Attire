@@ -48,7 +48,7 @@ public class PositionPacketAdapter extends PacketAdapter implements Listener
 	// Listener overrides
 
 	@EventHandler
-	public void onDisconnect( PlayerQuitEvent event )
+	public void onPlayerQuitEvent( PlayerQuitEvent event )
 	{
 		GROUND_MAP.remove( event.getPlayer().getEntityId() );
 	}

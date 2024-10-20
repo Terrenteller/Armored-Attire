@@ -9,10 +9,13 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 public final class ArmoredAttire extends JavaPlugin
 {
+	public static ArmoredAttire INSTANCE;
+	public static final String MESSAGE_TEMPLATE = "[§7Armored§cAttire§r] %s";
+
+	private final AttireCommand attireCommand = new AttireCommand();
 	private final EntityActionPacketAdapter entityActionPacketAdapter = new EntityActionPacketAdapter( this , ListenerPriority.NORMAL );
 	private final EntityEquipmentPacketAdapter entityEquipmentPacketAdapter = new EntityEquipmentPacketAdapter( this , ListenerPriority.NORMAL );
 	private final PositionPacketAdapter positionPacketAdapter = new PositionPacketAdapter( this , ListenerPriority.NORMAL );
-	private final AttireCommand attireCommand = new AttireCommand( getLogger() );
 
 	// JavaPlugin overrides
 
@@ -20,6 +23,8 @@ public final class ArmoredAttire extends JavaPlugin
 	public void onLoad()
 	{
 		super.onLoad();
+
+		INSTANCE = this;
 
 		ProtocolManager protocolManager = ProtocolLibrary.getProtocolManager();
 		protocolManager.addPacketListener( entityActionPacketAdapter );
@@ -30,7 +35,10 @@ public final class ArmoredAttire extends JavaPlugin
 	@Override
 	public void onEnable()
 	{
+		saveDefaultConfig();
+
 		PluginManager pluginManager = getServer().getPluginManager();
+		pluginManager.registerEvents( entityEquipmentPacketAdapter , this );
 		pluginManager.registerEvents( positionPacketAdapter , this );
 
 		PluginCommand pluginCommand = getCommand( "attire" );

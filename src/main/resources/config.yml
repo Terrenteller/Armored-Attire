@@ -1,0 +1,4 @@
+global:
+  # How to handle the item being used as an override. Valid values are those in the OverrideCost enumeration.
+  # Default: NO_CONSUME_NO_RETURN
+  overrideCost: NO_CONSUME_NO_RETURN

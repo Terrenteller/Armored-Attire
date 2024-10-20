@@ -1,4 +1,4 @@
-name: ArmoredAttire
+name: Armored-Attire
 version: '${version}'
 main: com.riintouge.armoredattire.ArmoredAttire
 api-version: '1.21'
@@ -20,8 +20,8 @@ commands:
       permission: permission.node
       permission-message: "You do not have permission to use this command"
     preview:
-      description: "Temporarily show the player their cosmetics"
-      usage: "/attire preview"
+      description: "Show the player their cosmetics"
+      usage: "/attire preview [on|off]"
       permission: permission.node
       permission-message: "You do not have permission to use this command"
     set:
