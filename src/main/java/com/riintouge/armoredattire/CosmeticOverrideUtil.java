@@ -3,24 +3,16 @@ package com.riintouge.armoredattire;
 import de.tr7zw.nbtapi.NBT;
 import de.tr7zw.nbtapi.iface.ReadWriteNBT;
 import de.tr7zw.nbtapi.iface.ReadableNBT;
-import org.bukkit.Material;
-import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.annotation.Nonnull;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
+// `/data get entity @p` will dump the NBT of the player. It's not great, but it's something.
 public class CosmeticOverrideUtil
 {
-	private static final Pattern VANILLA_TWEAKS_ARMORED_ELYTRA_CHESTPLATE_PATTERN
-		= Pattern.compile( "\"translate\":\"item\\.([^.]+)\\.([^\"]+)" );
-
 	public static void applyCosmeticOverride(
 		@Nullable ItemStack source,
 		@Nonnull ItemStack target,
@@ -74,49 +66,16 @@ public class CosmeticOverrideUtil
 
 	public static @Nullable ItemStack getImpliedCosmeticOverride( @NotNull ItemStack itemStack )
 	{
-		AtomicReference< ItemStack > atomicResult = new AtomicReference<>();
-		NBT.get( itemStack , customData ->
-		{
-			if( itemStack.getType() == Material.ELYTRA )
-			{
-				// The armored elytra datapacks used to have enough overlap we could treat them similarly.
-				// Not anymore. Since we're using Vanilla Tweaks, check for that.
-				ReadableNBT armoredElytraCompound = customData.getCompound( "armored_elytra" );
-				if( armoredElytraCompound != null )
-				{
-					// Vanilla Tweaks now stores the chestplate as an index.
-					// This makes it harder for us to be generic and extendable.
-					ItemMeta itemStackMeta = itemStack.getItemMeta();
-					Matcher matcher = VANILLA_TWEAKS_ARMORED_ELYTRA_CHESTPLATE_PATTERN.matcher( itemStackMeta.getAsString() );
-					if( matcher.find() )
-					{
-						// Try our best...
-						String domainName = matcher.group( 1 );
-						String materialName = matcher.group( 2 );
-						Material material = Material.matchMaterial( String.format( "%s:%s" , domainName , materialName ) );
-						if( material != null && material != Material.AIR )
-						{
-							ItemStack cosmeticOverrideItemStack = new ItemStack( material );
-							ItemMeta cosmeticOverrideItemStackMeta = cosmeticOverrideItemStack.getItemMeta();
+		ItemStack cosmeticOverride = VanillaTweaks.resolveOverride( itemStack );
+		if( !ItemStackUtil.isNullOrEmpty( cosmeticOverride ) )
+			return cosmeticOverride;
 
-							// TODO: How can we determine whether the chestplate actually has enchantments?
-							// It is not clear how Vanilla Tweaks stores the original chestplate data, if at all.
-							Map< Enchantment, Integer > enchantments = itemStackMeta.getEnchants();
-							for( Enchantment enchantment : enchantments.keySet() )
-								cosmeticOverrideItemStackMeta.addEnchant( enchantment , enchantments.get( enchantment ) , false );
+		cosmeticOverride = TeaksTweaks.resolveOverride( itemStack );
+		if( !ItemStackUtil.isNullOrEmpty( cosmeticOverride ) )
+			return cosmeticOverride;
 
-							if( itemStackMeta.hasEnchantmentGlintOverride() )
-								cosmeticOverrideItemStackMeta.setEnchantmentGlintOverride( true );
-
-							cosmeticOverrideItemStack.setItemMeta( cosmeticOverrideItemStackMeta );
-							atomicResult.set( cosmeticOverrideItemStack );
-						}
-					}
-				}
-			}
-		} );
-
-		return atomicResult.get();
+		// It's important that we return null for consumers, not air or an empty stack
+		return null;
 	}
 
 	public static boolean hasCosmeticOverride( @Nullable ItemStack itemStack )
